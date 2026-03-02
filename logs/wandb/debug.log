@@ -1,0 +1,26 @@
+2026-03-02 10:21:05,370 INFO    MainThread:37212 [wandb_setup.py:_flush():79] Current SDK version is 0.18.5
+2026-03-02 10:21:05,371 INFO    MainThread:37212 [wandb_setup.py:_flush():79] Configure stats pid to 37212
+2026-03-02 10:21:05,371 INFO    MainThread:37212 [wandb_setup.py:_flush():79] Loading settings from /home/zzh/.config/wandb/settings
+2026-03-02 10:21:05,371 INFO    MainThread:37212 [wandb_setup.py:_flush():79] Loading settings from /home/zzh/3D/Hyper/wandb/settings
+2026-03-02 10:21:05,371 INFO    MainThread:37212 [wandb_setup.py:_flush():79] Loading settings from environment variables: {'api_key': '***REDACTED***', 'mode': 'dryrun'}
+2026-03-02 10:21:05,371 INFO    MainThread:37212 [wandb_setup.py:_flush():79] Applying setup settings: {'mode': 'dryrun', '_disable_service': None}
+2026-03-02 10:21:05,371 INFO    MainThread:37212 [wandb_setup.py:_flush():79] Inferring run settings from compute environment: {'program_relpath': 'train.py', 'program_abspath': '/home/zzh/3D/Hyper/train.py', 'program': 'train.py'}
+2026-03-02 10:21:05,371 INFO    MainThread:37212 [wandb_init.py:_log_setup():534] Logging user logs to logs/wandb/offline-run-20260302_102105-8kij0qxk/logs/debug.log
+2026-03-02 10:21:05,371 INFO    MainThread:37212 [wandb_init.py:_log_setup():535] Logging internal logs to logs/wandb/offline-run-20260302_102105-8kij0qxk/logs/debug-internal.log
+2026-03-02 10:21:05,371 INFO    MainThread:37212 [wandb_init.py:init():621] calling init triggers
+2026-03-02 10:21:05,371 INFO    MainThread:37212 [wandb_init.py:init():628] wandb.init called with sweep_config: {}
+config: {}
+2026-03-02 10:21:05,371 INFO    MainThread:37212 [wandb_init.py:init():671] starting backend
+2026-03-02 10:21:05,371 INFO    MainThread:37212 [wandb_init.py:init():675] sending inform_init request
+2026-03-02 10:21:05,377 INFO    MainThread:37212 [backend.py:_multiprocessing_setup():104] multiprocessing start_methods=fork,spawn,forkserver, using: spawn
+2026-03-02 10:21:05,378 INFO    MainThread:37212 [wandb_init.py:init():688] backend started and connected
+2026-03-02 10:21:05,388 INFO    MainThread:37212 [wandb_init.py:init():783] updated telemetry
+2026-03-02 10:21:05,388 INFO    MainThread:37212 [wandb_init.py:init():816] communicating run to backend with 90.0 second timeout
+2026-03-02 10:21:05,612 INFO    MainThread:37212 [wandb_init.py:init():867] starting run threads in backend
+2026-03-02 10:21:05,803 INFO    MainThread:37212 [wandb_run.py:_console_start():2463] atexit reg
+2026-03-02 10:21:05,803 INFO    MainThread:37212 [wandb_run.py:_redirect():2311] redirect: wrap_raw
+2026-03-02 10:21:05,803 INFO    MainThread:37212 [wandb_run.py:_redirect():2376] Wrapping output streams.
+2026-03-02 10:21:05,803 INFO    MainThread:37212 [wandb_run.py:_redirect():2401] Redirects installed.
+2026-03-02 10:21:05,805 INFO    MainThread:37212 [wandb_init.py:init():911] run started, returning control to user process
+2026-03-02 10:21:05,806 INFO    MainThread:37212 [wandb_run.py:_config_callback():1390] config_cb None None {'split': 0, 'dataset': 'SemanticPOSS', 'dataset_config': 'config/semposs_dataset.yaml', 'voxel_size': 0.05, 'downsampling': 60000, 'batch_size': 4, 'num_workers': 8, 'hungarian_at_each_step': True, 'log_dir': 'logs', 'checkpoint_dir': 'checkpoints/SemanticPOSS/Mar02_10-20-56', 'train_lr': 0.001, 'finetune_lr': 0.0001, 'use_scheduler': True, 'warmup_epochs': 0, 'detach': 'None', 'min_lr': 1e-05, 'momentum_for_optim': 0.9, 'weight_decay_for_optim': 0.0001, 'overcluster_factor': 'None', 'num_heads': 1, 'clear_cache_int': 1, 'num_iters_sk': 3, 'initial_epsilon_sk': 0.05, 'final_epsilon_sk': 0.05, 'adapting_epsilon_sk': False, 'queue_start_epoch': 2, 'queue_batches': 10, 'queue_percentage': 0.1, 'comment': 'Mar02_10-20-56', 'project': 'NCDPC', 'entity': '15893788198-', 'offline': True, 'pretrained': 'None', 'epochs': 10, 'set_deterministic': False, 'alpha': 1.0, 'mix_pl': False, 'use_reweight': False, 'gamma': 1.0, 'num_outer_iters': 100, 'lr_w': 0.1, 'gamma_decrease': 0.5, 'ak_bound': 0.005, 'smooth_bound': 10, 'lam': 1.0, 'lam_region': 1.0, 'use_imbalanced_region': False, 'use_gt': False, 'exp_path': 'None', 'dbscan': 0.5, 'num_classes': 13, 'num_unlabeled_classes': 4, 'num_labeled_classes': 9}
+2026-03-02 11:22:56,860 WARNING MsgRouterThr:37212 [router.py:message_loop():77] message_loop has been closed
