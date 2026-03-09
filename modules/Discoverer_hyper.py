@@ -4,13 +4,10 @@ Time:     2023/8/16 15:02
 Author:   Ruijie Xu
 File:     Discoverer_new.py
 """
-from torch_sparse import SparseTensor
 import os
-import time
-from tqdm import tqdm
 import sys
 from itertools import chain as chain_iterators
-from fvcore.nn import FlopCountAnalysis, parameter_count_table
+
 import MinkowskiEngine as ME
 import pytorch_lightning as pl
 import torch
@@ -22,7 +19,6 @@ from torch.utils.data import DataLoader
 from torchmetrics.functional import jaccard_index
 from tqdm import tqdm
 from torch import nn
-import pickle
 
 from torch_scatter import scatter
 from models.multiheadminkunet import MultiHeadMinkUnet, MinkUnet
@@ -35,63 +31,6 @@ from utils.dataset import dataset_wrapper, get_dataset
 from utils.sinkhorn_knopp import SinkhornKnopp, Balanced_sinkhorn_ce, SemiSinkhornKnopp
 import numpy as np
 
-from sklearn.manifold import TSNE
-import matplotlib.pyplot as plt
-from tsnecuda import TSNE
-from datetime import datetime
-
-#
-# def save_semantickitti_format(coords, pred_labels, sequence_id, frame_id, output_dir):
-#     """
-#     保存点云数据和语义标签为 SemanticKITTI 格式。
-#     参数：
-#     - coords (torch.Tensor): 点云坐标，形状为 (N, 3)。
-#     - pred_labels (torch.Tensor): 预测的标签，形状为 (N,)。
-#     - sequence_id (int): 序列编号，例如 0。
-#     - frame_id (int): 帧编号，对应文件名中的编号，例如 0。
-#     - output_dir (str): 保存的根目录，例如 '/home/zzh/NOPS-oral/prediction_save/POSS'。
-#     """
-#
-#     # 确保 coords 和 pred_labels 有效
-#     if coords.shape[0] == 0:
-#         print(f"Warning: No points to save for frame {frame_id}. Skipping saving.")
-#         return
-#
-#     # 确保 coords 和 pred_labels 的数量一致
-#     assert coords.shape[0] == pred_labels.shape[0], (
-#         f"Mismatch between number of points and labels for frame {frame_id}. "
-#         f"coords.shape[0]: {coords.shape[0]}, pred_labels.shape[0]: {pred_labels.shape[0]}"
-#     )
-#
-#     # 打印调试信息，确认形状一致
-#     print(f"Saving frame {frame_id}: coords.shape: {coords.shape}, pred_labels.shape: {pred_labels.shape}")
-#
-#     # 将序列编号格式化为 2 位字符串，例如 '00'
-#     sequence_str = f"{sequence_id:02d}"
-#     frame_str = f"{frame_id:06d}"
-#
-#     # 构建序列目录路径
-#     sequence_dir = os.path.join(output_dir, 'sequences', sequence_str)
-#
-#     # 构建 velodyne 和 labels 目录路径
-#     velodyne_dir = os.path.join(sequence_dir, 'velodyne')
-#     labels_dir = os.path.join(sequence_dir, 'labels')
-#
-#     # 自动创建目录（如果不存在）
-#     os.makedirs(velodyne_dir, exist_ok=True)
-#     os.makedirs(labels_dir, exist_ok=True)
-#
-#     # 1. 保存点云数据
-#     pointcloud_filename = os.path.join(velodyne_dir, f'frame{frame_str}.bin')
-#     pointcloud = coords.cpu().numpy().astype(np.float32)  # 转换为 numpy 数组并确保数据类型为 float32
-#     pointcloud.tofile(pointcloud_filename)  # 保存为 .bin 文件
-#
-#     # 2. 保存语义标签
-#     label_filename = os.path.join(labels_dir, f'frame{frame_str}.label')
-#     pred_labels_np = pred_labels.cpu().numpy().astype(np.int32)  # 转换为 numpy 数组并确保数据类型为 int32
-#     pred_labels_np.tofile(label_filename)  # 保存为 .label 文件
-#
-#     print(f"已保存序列 {sequence_str} 的帧 {frame_str} 的点云和标签。")
 
 def calculate_ASA(superpixel, gt):
     assert superpixel.shape == gt.shape, "Superpixel and ground truth shapes must match."
@@ -212,8 +151,7 @@ class Discoverer(pl.LightningModule):
             num_labeled=self.hparams.num_labeled_classes,
             num_unlabeled=self.hparams.num_unlabeled_classes
         )
-        self.i = 0
-        self.t1 = 0
+
         self.label_mapping = label_mapping
         self.label_mapping_inv = label_mapping_inv
         self.unknown_label = unknown_label
@@ -247,13 +185,6 @@ class Discoverer(pl.LightningModule):
         self.train_gt = []
         self.asa = []
 
-        # 存储每个批次的特征--------tsne
-        # self.features_list = []
-        # self.labels_list = []
-        #
-        # self.temp_dir = "temp_features"  # 临时存储特征的目录
-        # os.makedirs(self.temp_dir, exist_ok=True)
-        # self.counter = 0
         return
 
     def configure_optimizers(self):
@@ -362,16 +293,11 @@ class Discoverer(pl.LightningModule):
         sp_tensor1 = ME.SparseTensor(features=feats1.float(), coordinates=coords1)
 
         # Clear cache at regular interval
-        # if self.global_step % self.hparams.clear_cache_int == 0:
-        #     torch.cuda.empty_cache()
+        if self.global_step % self.hparams.clear_cache_int == 0:
+            torch.cuda.empty_cache()
 
         out = self.model(sp_tensor)
         out1 = self.model(sp_tensor1)
-        #
-        # # 获取当前批次的特征------tsne
-        # features = out["feats"].detach().cpu().numpy()  # 保存到 CPU 上，避免显存溢出
-        # self.features_list.append(features)
-        # self.labels_list.append(real_labels.cpu().numpy())  # 保存标签
 
         logits = torch.cat([out["logits_lab"], out["logits_unlab"]], dim=-1)
         logits1 = torch.cat([out1["logits_lab"], out1["logits_unlab"]], dim=-1)
@@ -413,20 +339,13 @@ class Discoverer(pl.LightningModule):
 
             targets1[~mask_lab1, nlc:] = self.cos_sk(out1["logits_unlab"][~mask_lab1])[0].detach().type_as(targets)
 
-
             #print(f"cos_sk: {self.cos_sk.w}, gamma: {self.cos_sk.gamma}")
             freq = torch.bincount(torch.argmax(pseudolabel, dim=1)) / pseudolabel.shape[0]
             #print(f"freq: {freq}")
 
-
-        
         re_w_reg = 0
-
-
-
         if torch.all(all_sp == -1) or torch.all(all_sp1 == -1) or targets[~mask_lab].shape[0] == 0 or \
                 targets1[~mask_lab1].shape[0] == 0 or self.hparams.alpha == 0:
-            print("Entered the if block")
             # Evaluate loss
             loss_cluster = self.loss(
                 10 * logits, targets1, selected_idx, selected_idx1, pcd_masks, pcd_masks1
@@ -435,9 +354,7 @@ class Discoverer(pl.LightningModule):
                 10 * logits1, targets, selected_idx1, selected_idx, pcd_masks1, pcd_masks
             )
             loss = loss_cluster.mean()
-
             freq_dict = {f"w/freq{i}": item.item() for i, item in enumerate(freq)}
-
             w_dict = {f"w/w{i}": item.item() for i, item in enumerate(self.cos_sk.w[0])}
 
             results = {
@@ -445,98 +362,120 @@ class Discoverer(pl.LightningModule):
                 "train/loss_cluster": loss_cluster.detach(),
                 "gamma": self.cos_sk.gamma
             }
-
             results.update(freq_dict)
             results.update(w_dict)
-
-            #新增：return loss
-            #return loss
         else:
-            # regin_feat_list = []
-            # regin_feat_list1 = []
-            # feat_list = split_tensor_by_list(out["feats"], split_sizes)
-            # feat1_list = split_tensor_by_list(out1["feats"], split_sizes1)
-            # for i in range(batch_num):
-            #     if not np.all(superpoint_lab[i] == -1):
-            #         regin_feat_list.append(pooling_according_label(feat_list[i], superpoint_lab[i]).cuda())
-            #     if not np.all(superpoint_lab1[i] == -1):
-            #         regin_feat_list1.append(pooling_according_label(feat1_list[i], superpoint_lab1[i]).cuda())
-            #
-            # region_feat = torch.cat(regin_feat_list, dim=0)
-            # region_feat1 = torch.cat(regin_feat_list1, dim=0)
-            #
-            # region_logits = cosine_similarity(region_feat, self.model.head_unlab.prototypes.kernel.data)
-            # targets_region, re_w_ce, re_w_reg = self.region_sk(region_logits)
-            # targets_region = targets_region.detach().type_as(targets)
-            #
-            # region_logits1 = cosine_similarity(region_feat1, self.model.head_unlab.prototypes.kernel.data)
-            # targets_region1 = self.region_sk(region_logits1)[0].detach().type_as(targets)
-
+            # == == == == == == == == == == == == == == == == == == == == == == == == == == == == == == == == == == =
+            # 高效几何感知特征提取函数 (Geometric-Aware Cues)
             # =====================================================================
-            #几何感知超图推理
-            regin_feat_list = []
-            regin_feat_list1 = []
-            regin_coord_list = []  # 新增：用于存储 Region 的几何中心
-            regin_coord_list1 = []  # 新增
+            def compute_region_geometric_cues(pts_coords, pts_labels):
+                """基于区域提取协方差特征值: Linearity, Planarity, Scattering"""
+                pts_labels = torch.tensor(pts_labels, device=pts_coords.device)
+                uniques = torch.unique(pts_labels)
+                uniques = uniques[uniques != -1]
+
+                cues_list, centers_list = [], []
+                for lab in uniques:
+                    pts = pts_coords[pts_labels == lab]
+                    center = pts.mean(dim=0)
+                    centers_list.append(center)
+
+                    if pts.shape[0] >= 3:
+                        pts_centered = pts - center
+                        # 计算 3x3 协方差矩阵
+                        cov = torch.matmul(pts_centered.t(), pts_centered) / (pts.shape[0] - 1)
+                        try:
+                            # 提取特征值并降序排列
+                            eigvals = torch.linalg.eigvalsh(cov)
+                            eigvals = torch.clamp(eigvals, min=1e-6)
+                            eigvals = torch.flip(eigvals, dims=[0])
+                            l1, l2, l3 = eigvals[0], eigvals[1], eigvals[2]
+
+                            linearity = (l1 - l2) / l1
+                            planarity = (l2 - l3) / l1
+                            scattering = l3 / l1
+                            cues = torch.stack([linearity, planarity, scattering])
+                        except:
+                            cues = torch.zeros(3, device=pts_coords.device)
+                    else:
+                        cues = torch.zeros(3, device=pts_coords.device)
+                    cues_list.append(cues)
+
+                if len(cues_list) > 0:
+                    return torch.stack(cues_list), torch.stack(centers_list)
+                else:
+                    return torch.empty(0, 3, device=pts_coords.device), torch.empty(0, 3, device=pts_coords.device)
+
+            regin_feat_list, regin_feat1_list = [], []
+            regin_geo_list, regin_geo1_list = [], []
 
             feat_list = split_tensor_by_list(out["feats"], split_sizes)
             feat1_list = split_tensor_by_list(out1["feats"], split_sizes1)
-
-            # 提取 float 格式的原始坐标，跳过第0列的 batch_idx
-            coord_list = split_tensor_by_list(coords.float(), split_sizes)
-            coord1_list = split_tensor_by_list(coords1.float(), split_sizes1)
+            # 提取 float 坐标并去掉第一列 batch_idx
+            coord_list = split_tensor_by_list(coords.float()[:, 1:], split_sizes)
+            coord1_list = split_tensor_by_list(coords1.float()[:, 1:], split_sizes1)  # 修复了这里的拼写错误
 
             for i in range(batch_num):
                 if not np.all(superpoint_lab[i] == -1):
-                    regin_feat_list.append(pooling_according_label(feat_list[i], superpoint_lab[i]).cuda())
-                    # 汇聚计算各个 Region (Superpoint) 的几何质心坐标
-                    regin_coord_list.append(pooling_according_label(coord_list[i][:, 1:], superpoint_lab[i]).cuda())
+                    # 1. 语义特征
+                    sem_feat = pooling_according_label(feat_list[i], superpoint_lab[i]).cuda()
+                    regin_feat_list.append(sem_feat)
+                    # 2. 几何感知特征 (GAP): 融合曲率线索与中心坐标
+                    cues, centers = compute_region_geometric_cues(coord_list[i].cuda(), superpoint_lab[i])
+                    regin_geo_list.append(torch.cat([cues, centers], dim=-1))
+
                 if not np.all(superpoint_lab1[i] == -1):
-                    regin_feat_list1.append(pooling_according_label(feat1_list[i], superpoint_lab1[i]).cuda())
-                    regin_coord_list1.append(pooling_according_label(coord1_list[i][:, 1:], superpoint_lab1[i]).cuda())
+                    sem_feat1 = pooling_according_label(feat1_list[i], superpoint_lab1[i]).cuda()
+                    regin_feat1_list.append(sem_feat1)
+                    cues1, centers1 = compute_region_geometric_cues(coord1_list[i].cuda(), superpoint_lab1[i])
+                    regin_geo1_list.append(torch.cat([cues1, centers1], dim=-1))
 
-            region_feat = torch.cat(regin_feat_list, dim=0)
-            region_feat1 = torch.cat(regin_feat_list1, dim=0)
-            region_coord = torch.cat(regin_coord_list, dim=0)
-            region_coord1 = torch.cat(regin_coord_list1, dim=0)
+            # 增加空张量保护，防止全 batch 都被滤除（虽然罕见）
+            if len(regin_feat_list) > 0 and len(regin_feat1_list) > 0:
+                region_feat = torch.cat(regin_feat_list, dim=0)
+                region_feat1 = torch.cat(regin_feat1_list, dim=0)
+                region_geo = torch.cat(regin_geo_list, dim=0)
+                region_geo1 = torch.cat(regin_geo1_list, dim=0)
+            else:
+                region_feat = torch.empty(0, self.model.feat_dim, device=self.device)
+                region_feat1 = torch.empty(0, self.model.feat_dim, device=self.device)
+                region_geo = torch.empty(0, 6, device=self.device)
+                region_geo1 = torch.empty(0, 6, device=self.device)
 
             # =====================================================================
-            # Geometric-Aware Hypergraph Reasoning Module (对应论文的超图构建与协同推理)
+            # 超图结构构建与推理 (Hypergraph Construction & Reasoning)
             # =====================================================================
-            def apply_hypergraph_reasoning(r_feat, r_coord, alpha=0.5, M=8, tau=0.1):
-                """
-                结合语义特征与空间几何分布构建双重相似度超图，对特征进行协同增强。
-                避免了对每个点的KNN耗时运算，利用 Region (超点) 级别实现零负担引入。
-                """
-                # 1. 语义相似度 S_s (Semantic Similarity)
-                feat_norm = F.normalize(r_feat, p=2, dim=1)
+            def apply_gap_hypergraph(r_sem, r_geo, M=8, alpha=0.5, tau=0.1):
+                """使用语义和几何双重相似度进行超图协同推理"""
+                num_nodes = r_sem.shape[0]
+                if num_nodes <= 1:  # 保护：如果节点数太少，无法/无需建图，直接返回原特征
+                    return r_sem
+
+                # 语义相似度 S_s
+                feat_norm = F.normalize(r_sem, p=2, dim=1)
                 S_s = torch.mm(feat_norm, feat_norm.t())
-
-                # 2. 几何相似度 S_g (Geometric Similarity based on Gaussian Kernel)
-                dist_sq = torch.cdist(r_coord, r_coord, p=2).pow(2)
+                # 几何相似度 S_g (利用提取的几何曲率和坐标特征)
+                dist_sq = torch.cdist(r_geo, r_geo, p=2).pow(2)
                 S_g = torch.exp(-dist_sq / tau)
-
-                # 3. 双重相似度矩阵 S_b (Dual Similarity)
+                # 双重相似度 S_b
                 S_b = alpha * S_g + (1 - alpha) * S_s
 
-                # 4. 动态超边生成 (Top-M Hyperedge Construction)
-                K = min(M, S_b.size(1))
+                # 动态超边生成 (Top-M 截断)
+                K = min(M, num_nodes)
                 topk_vals, topk_indices = torch.topk(S_b, k=K, dim=1)
                 mask = torch.zeros_like(S_b).scatter_(1, topk_indices, 1.0)
-                S_b_hyper = S_b * mask
 
-                # 权重归一化 (Dynamic Hyperedge Adjustment)
-                S_b_hyper = F.normalize(S_b_hyper, p=1, dim=1)
+                # 超边权重归一化
+                S_b_hyper = F.normalize(S_b * mask, p=1, dim=1)
 
-                # 5. 特征协同推理 (Collaborative Message Passing)
-                r_feat_hyper = torch.mm(S_b_hyper, r_feat)
-                return r_feat_hyper
+                # 特征协同增强
+                return torch.mm(S_b_hyper, r_sem)
 
-            # 将原始的纯语义特征，通过超图传递增强为"几何感知"特征
-            region_feat_hyper = apply_hypergraph_reasoning(region_feat, region_coord)
-            region_feat1_hyper = apply_hypergraph_reasoning(region_feat1, region_coord1)
+            # 经超图聚合后的增强特征
+            region_feat_hyper = apply_gap_hypergraph(region_feat, region_geo)
+            region_feat1_hyper = apply_gap_hypergraph(region_feat1, region_geo1)
 
-            # 基于增强后的超图特征，利用 cosine classifier 获取预测 logits
+            # --------------------- 原有的推理和Loss计算部分 ---------------------
             region_logits = cosine_similarity(region_feat_hyper, self.model.head_unlab.prototypes.kernel.data)
             targets_region, re_w_ce, re_w_reg = self.region_sk(region_logits)
             targets_region = targets_region.detach().type_as(targets)
@@ -550,7 +489,7 @@ class Discoverer(pl.LightningModule):
             region_logits1_list = split_tensor_by_list(region_logits1, region_split_sizes1)
             region_targets_list = split_tensor_by_list(targets_region, region_split_sizes)
             region_targets1_list = split_tensor_by_list(targets_region1, region_split_sizes1)
-            # =====================================================================
+
             # Evaluate loss
             loss_cluster = self.loss(
                 10 * logits, targets1, selected_idx, selected_idx1, pcd_masks, pcd_masks1
@@ -561,19 +500,10 @@ class Discoverer(pl.LightningModule):
 
             loss_cluster_region = self.region_loss(region_logits_list, region_targets1_list, selected_region_idx,
                                                    selected_region_idx1, batch_num)
-            # if not isinstance(loss_cluster_region_item, (float, int)):
-            #     loss_cluster_region = loss_cluster_region_item.mean()
-            # else:
-            #     loss_cluster_region = 0
 
             loss_cluster_region += self.region_loss(region_logits1_list, region_targets_list, selected_region_idx1,
                                                     selected_region_idx, batch_num)
-            # if not isinstance(loss_cluster_region_item1, (float, int)):
-            #     loss_cluster_region += loss_cluster_region_item1.mean()
 
-            # loss = loss_cluster.mean()
-            # Keep track of the loss for each head
-            # if not isinstance(loss_cluster_region , (float, int)):
             loss = loss_cluster + self.hparams.alpha * loss_cluster_region
 
             w_dict = {f"w/w{i}": item.item() for i, item in enumerate(self.cos_sk.w[0])}
@@ -596,8 +526,8 @@ class Discoverer(pl.LightningModule):
             results.update(region_w_dict)
 
         # Keep track of the loss for each head
-        # self.train_ps_cosine.append(torch.max(F.softmax(out["logits_unlab"][~mask_lab], dim=1), dim=1)[1])
-        # self.train_gt.append(real_labels[~mask_lab])
+        self.train_ps_cosine.append(torch.max(F.softmax(out["logits_unlab"][~mask_lab], dim=1), dim=1)[1])
+        self.train_gt.append(real_labels[~mask_lab])
         self.log_dict(results, on_step=True, on_epoch=True, sync_dist=True)
 
         self.kl_loss = w_reg
@@ -626,42 +556,7 @@ class Discoverer(pl.LightningModule):
                 self.count = 0
         else:
             self.count = 0
-        # save_dir="tsne_images"
-        # # 确保保存路径存在
-        # os.makedirs(save_dir, exist_ok=True)
-        #
-        # # 将 features 和 labels 从 GPU 转移到 NumPy 数组（直接使用 GPU 张量）
-        # all_features = np.concatenate(self.features_list, axis=0)
-        # all_labels = np.concatenate(self.labels_list, axis=0)
-        #
-        # # 将特征数据转移到 GPU
-        # all_features_gpu = torch.tensor(all_features).cuda()
-        #
-        # # 确保数据是 float32 类型，并转换为 NumPy 数组（但依然在 GPU 上）
-        # all_features_cpu = all_features_gpu.cpu().numpy()
-        #
-        # # 直接调用 TSNEcuda
-        # tsne = TSNE(n_components=2,perplexity=30.0, n_iter=1000)
-        # reduced_features = tsne.fit_transform(all_features_cpu)
-        #
-        # # 使用 matplotlib 绘制 t-SNE 图
-        # plt.figure(figsize=(10, 8))
-        # scatter = plt.scatter(reduced_features[:, 0], reduced_features[:, 1], c=all_labels, cmap='tab20', s=5)
-        # plt.colorbar(scatter, label='Class')
-        # plt.title('t-SNE Visualization')
-        #
-        # # 动态生成文件名：epoch 数 + 当前时间
-        # current_time = datetime.now().strftime('%Y%m%d_%H%M%S')
-        # file_name = f"epoch_{self.current_epoch}_{current_time}.png"
-        # file_path = os.path.join(save_dir, file_name)
-        #
-        # # 保存图片
-        # plt.savefig(file_path, dpi=300, bbox_inches='tight')
-        #
-        # # 关闭当前图像，释放内存
-        # plt.close()
-        #
-        # print(f"t-SNE visualization saved: {file_path}")
+
 
         return loss
 
@@ -848,8 +743,8 @@ class Discoverer(pl.LightningModule):
                     )
 
                     # Must clear cache at regular interval
-                    # if self.global_step % self.hparams.clear_cache_int == 0:
-                    #     torch.cuda.empty_cache()
+                    if self.global_step % self.hparams.clear_cache_int == 0:
+                        torch.cuda.empty_cache()
 
                     out = self.model(sp_tensor)
 
@@ -887,118 +782,6 @@ class Discoverer(pl.LightningModule):
             self.label_mapping_inv.update(label_mapping)
 
         return
-
-
-
-    # def validation_step(self, data,_):
-    #
-    #     # increment()
-    #     coords, feats, real_labels, _, _, _ = data
-    #
-    #     coords = coords.int()
-    #
-    #     sp_tensor = ME.SparseTensor(features=feats.float(), coordinates=coords)
-    #
-    #
-    #     # out = self.model(sp_tensor)
-    #     preds = torch.cat([out["logits_lab"], out["logits_unlab"]], dim=-1)
-    #
-    #     param_info = parameter_count_table(self.model)
-    #     print(f"\n模型参数量:\n{param_info}")
-    #
-    #     # min_coords = coords.min(dim=0).values.cpu().numpy()  # 转换为 NumPy
-    #     # min_coords = torch.tensor(min_coords, dtype=torch.int32)  # 转换回 torch.IntTensor
-    #     # dense_tensor = sp_tensor.dense(min_coordinate=min_coords)
-    #     # flops = FlopCountAnalysis(self.model, dense_tensor).total() / 1e9
-    #     # # flops, _ = profile(self.model, inputs=(sp_tensor,))
-    #     # # total_flops = flops / 1e9
-    #     # print(f"总 FLOPs: {flops:.2f} GFLOPs")
-    #
-    #     # input_tensor = torch.randn_like(sp_tensor)  # 使用与 sp_tensor 相同形状的随机张量
-    #     # flops, params = profile(self.model, inputs=(input_tensor,))
-    #     # flops, params = clever_format([flops, params], "%.3f")
-    #     # print(f"FLOPs: {flops}")
-    #     # print(f"Params: {params}")
-    #
-    #     start = torch.cuda.Event(enable_timing=True)
-    #     end = torch.cuda.Event(enable_timing=True)
-    #
-    #     start.record()
-    #     out = self.model(sp_tensor)
-    #     end.record()
-    #
-    #     torch.cuda.synchronize()  # 确保时间测量准确
-    #     inference_time = start.elapsed_time(end) / 1000
-    #     print(f"推理时间: {inference_time:.4f} 秒")
-    #     self.i = self.i+1
-    #     self.t1 = self.t1 + inference_time
-    #     t2 = self.t1/self.i
-    #     print(self.i)
-    #     print(f"平均推理时间: {t2:.4f} 秒")
-    #
-    #     print("aaaaaaaaaaaaaaaaaaa")
-    #
-    #     # 获取所有特征
-    #     all_features = out["feats"].detach()  # 从GPU转到CPU
-    #
-    #     # 获取所有标签
-    #     gt_labels = real_labels
-    #
-    #     # 选择未标注数据的索引，假设未标注数据的标签为 -1
-    #     #unlabeled_indices = (gt_labels <= 0)
-    #     unlabeled_indices = (gt_labels >= 5) & (gt_labels < 6)
-    #
-    #     # 打印未标注数据的数量
-    #     print(f"Number of unlabeled samples: {unlabeled_indices.sum().item()}")
-    #
-    #     # 只提取未标注数据的特征和标签
-    #     if unlabeled_indices.sum() > 0:
-    #         unlabeled_features = all_features[unlabeled_indices].cpu().numpy()
-    #         unlabeled_labels = gt_labels[unlabeled_indices].cpu().numpy()
-    #
-    #         # 打印未标注数据的形状
-    #         print(f"Unlabeled features shape: {unlabeled_features.shape}")
-    #         print(f"Unlabeled labels shape: {unlabeled_labels.shape}")
-    #         self.counter += 1
-    #         # 将特征和标签写入磁盘
-    #         np.save(os.path.join(self.temp_dir, f"features_{self.counter}.npy"), unlabeled_features)
-    #         np.save(os.path.join(self.temp_dir, f"labels_{self.counter}.npy"), unlabeled_labels)
-    #
-    #         #
-    #         # # 将未标注数据的特征和标签添加到列表中
-    #         # self.features_list.append(unlabeled_features)
-    #         # self.labels_list.append(unlabeled_labels)
-    #     else:
-    #         print("No unlabeled data found in this batch.")
-    #
-    #     sorted_label_mapping_inv = dict(
-    #         sorted(self.label_mapping_inv.items(), key=lambda item: item[1])
-    #     )
-    #     sorter = list(sorted_label_mapping_inv.keys())
-    #
-    #     preds = preds[:, sorter]
-    #
-    #     loss = self.valid_criterion(preds, real_labels.long())
-    #
-    #
-    #     gt_labels = real_labels
-    #     avail_labels = torch.unique(gt_labels).long()
-    #     _, pred_labels = torch.max(torch.softmax(preds.detach(), dim=1), dim=1)
-    #
-    #
-    #
-    #     IoU = jaccard_index(gt_labels, pred_labels, reduction="none")
-    #     IoU = IoU[avail_labels]
-    #
-    #     self.log("valid/loss", loss, on_epoch=True, sync_dist=True, rank_zero_only=True)
-    #     IoU_to_log = {
-    #         f"valid/IoU/{self.label_dict[int(avail_labels[i])]}": label_IoU
-    #         for i, label_IoU in enumerate(IoU)
-    #     }
-    #     for label, value in IoU_to_log.items():
-    #         print(label, value)
-    #         self.log(label, value, on_epoch=True, sync_dist=True, rank_zero_only=True)
-    #     return loss
 
     def validation_step(self, data, _):
         coords, feats, real_labels, _, _, _ = data
@@ -1040,46 +823,6 @@ class Discoverer(pl.LightningModule):
             self.log(label, value, on_epoch=True, sync_dist=True, rank_zero_only=True)
 
         return loss
-
-
-    # def on_validation_epoch_end(self):
-    #     # 合并磁盘上的所有文件
-    #     feature_files = sorted([f for f in os.listdir(self.temp_dir) if f.startswith("features_")])
-    #     label_files = sorted([f for f in os.listdir(self.temp_dir) if f.startswith("labels_")])
-    #
-    #     all_features = []
-    #     all_labels = []
-    #     for feature_file, label_file in zip(feature_files, label_files):
-    #         features = np.load(os.path.join(self.temp_dir, feature_file))
-    #         labels = np.load(os.path.join(self.temp_dir, label_file))
-    #         all_features.append(features)
-    #         all_labels.append(labels)
-    #
-    #     # 清空临时文件
-    #     for file in feature_files + label_files:
-    #         os.remove(os.path.join(self.temp_dir, file))
-    #
-    #     # 合并特征和标签
-    #     all_features = np.concatenate(all_features, axis=0)
-    #     all_labels = np.concatenate(all_labels, axis=0)
-    #     # 确保标签是整数类型
-    #     all_labels = all_labels.astype(int)
-    #     print("正在可视化.....")
-    #     # 使用 t-SNE 降维
-    #     tsne = TSNE(n_components=2, perplexity=30.0, n_iter=1000,learning_rate=200)
-    #     reduced_features = tsne.fit_transform(all_features)
-    #
-    #     # 可视化 t-SNE 结果
-    #     plt.figure(figsize=(10, 8))
-    #     scatter = plt.scatter(reduced_features[:, 0], reduced_features[:, 1], c=all_labels, cmap='tab20', s=5)
-    #     plt.colorbar(scatter, label='Class')
-    #     plt.title('t-SNE Visualization (Validation)')
-    #     save_dir = "tsne_images"
-    #     os.makedirs(save_dir, exist_ok=True)
-    #     current_time = datetime.now().strftime('%Y%m%d_%H%M%S')
-    #     plt.savefig(f"{save_dir}/tsne_validation_{current_time}.png")
-    #     plt.close()
-
 
     def on_save_checkpoint(self, checkpoint):
         # Maintain info about best head when saving checkpoints

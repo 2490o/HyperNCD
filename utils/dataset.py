@@ -117,7 +117,7 @@ class SemanticKITTIRestrictedDataset(torch.utils.data.Dataset):
 
 
         import os
-        if os.path.exists("/home/zzh/ECCV-LY/NCD_PC-main/region_save/KITTI/" + str(self.data_splits)+"/" + str(t) + '.pkl'):
+        if os.path.exists("/home/zzh/3D/Hyper/region_save/KITTI/" + str(self.data_splits)+"/" + str(t) + '.pkl'):
             pass
         else:
 
@@ -148,7 +148,11 @@ class SemanticKITTIRestrictedDataset(torch.utils.data.Dataset):
                 region_id = clustering.labels_
             else:
                 region_id = None
-            with open("/home/zzh/ECCV-LY/NCD_PC-main/region_save/KITTI/" + str(self.data_splits)+"/" + str(t) + '.pkl', "wb") as f:
+
+            save_path = "/home/zzh/3D/Hyper/region_save/KITTI/" + str(self.data_splits) + "/" + str(t) + '.pkl'
+            os.makedirs(os.path.dirname(save_path), exist_ok=True)
+
+            with open(save_path, "wb") as f:
                 pickle.dump(region_id, f)
 
 
@@ -192,7 +196,7 @@ class SemanticKITTIRestrictedDataset(torch.utils.data.Dataset):
             sup_label = np.zeros_like(labels) - 1
 
             if self.superpoint:
-                fr = open('/home/zzh/ECCV-LY/NCD_PC-main/region_save/KITTI/' + str(self.data_splits)+"/" + str(t) + '.pkl', "rb")
+                fr = open('/home/zzh/3D/Hyper/region_save/KITTI/' + str(self.data_splits)+"/" + str(t) + '.pkl', "rb")
                 superpoint = pickle.load(fr)
                 fr.close()
                 if superpoint is not None:
@@ -524,7 +528,7 @@ class SemanticPOSSRestrictedDataset(torch.utils.data.Dataset):
         # 新增
         import os
         if os.path.exists(
-                "/home/zzh/ECCV-LY/NCD_PC-main/region_save/POSS-update/" + str(self.data_splits) + "/" + str(t) + '.pkl'):
+                "/home/zzh/3D/Hyper/region_save/POSS-update/" + str(self.data_splits) + "/" + str(t) + '.pkl'):
             pass
         else:
 
@@ -555,9 +559,10 @@ class SemanticPOSSRestrictedDataset(torch.utils.data.Dataset):
                 region_id = clustering.labels_
             else:
                 region_id = None
-            with open(
-                    "/home/zzh/ECCV-LY/NCD_PC-main/region_save/POSS-update/" + str(self.data_splits) + "/" + str(t) + '.pkl',
-                    "wb") as f:
+            save_path = "/home/zzh/3D/Hyper/region_save/POSS-update/" + str(self.data_splits) + "/" + str(t) + '.pkl'
+            os.makedirs(os.path.dirname(save_path), exist_ok=True)
+
+            with open(save_path, "wb") as f:
                 pickle.dump(region_id, f)
 
         if self.augment:
@@ -592,28 +597,7 @@ class SemanticPOSSRestrictedDataset(torch.utils.data.Dataset):
             labels = labels.reshape((-1))
             labels = labels & 0xFFFF
         #
-        #
-        #     labels = self.learning_map_function(labels)
-        #
-        #     sup_label = np.zeros_like(labels) - 1
-        #
-        #
-        #     labelled_idx = labels != -1
-        #     labels1 = labels[labelled_idx]
-        #     mapped_labels = self.label_mapping_function(labels1)
-        #
-        #     import os
-        #     if os.path.exists("/home/zzh/ECCV-LY/NCD_PC-main/region_save/POSS-update/" + str(self.data_splits)+"/" + str(t) + '.pkl'):
-        #         pass
-        #     else:
-        #         from sklearn import cluster
-        #         if coordinates[labels != -1][mapped_labels == 10].shape[0] >= 1:
-        #             clustering = cluster.DBSCAN(eps=0.5, min_samples=2).fit(coordinates[labels != -1][mapped_labels == 10])
-        #             region_id = clustering.labels_
-        #         else:
-        #             region_id = None
-        #         with open("/home/zzh/ECCV-LY/NCD_PC-main/region_save/POSS-update/" + str(self.data_splits)+"/" + str(t) + '.pkl', "wb") as f:
-        #             pickle.dump(region_id, f)
+
 
             # 新增：
             for index, element in enumerate(labels):
@@ -621,7 +605,7 @@ class SemanticPOSSRestrictedDataset(torch.utils.data.Dataset):
             sup_label = np.zeros_like(labels) - 1
 
             if self.superpoint:
-                fr = open("/home/zzh/ECCV-LY/NCD_PC-main/region_save/POSS-update/" + str(self.data_splits)+"/" + str(t) + '.pkl', "rb")
+                fr = open("/home/zzh/3D/Hyper/region_save/POSS-update/" + str(self.data_splits)+"/" + str(t) + '.pkl', "rb")
                 superpoint = pickle.load(fr)
                 fr.close()
                 if superpoint is not None:

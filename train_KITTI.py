@@ -9,11 +9,13 @@ import yaml
 from pytorch_lightning.callbacks import ModelCheckpoint, LearningRateMonitor
 from pytorch_lightning.loggers import CSVLogger, WandbLogger
 
-from modules.Discoverer_hyper import Discoverer
+from modules.Discoverer import Discoverer
 from utils import unkn_labels as unk_labels
 from utils.callbacks import mIoUEvaluatorCallback
 
 SEED = 1234
+
+
 
 parser = ArgumentParser()
 parser.add_argument("-s", "--split", type=int, help="split", required=True)
@@ -22,7 +24,7 @@ parser.add_argument("--dataset", choices=["SemanticKITTI", "SemanticPOSS"], defa
 parser.add_argument("--dataset_config", default=None, type=str, help="dataset config file")
 parser.add_argument("--voxel_size", default="0.05", type=float, help="voxel_size")
 parser.add_argument("--downsampling", default="60000", type=int, help="number of points per pcd")
-parser.add_argument("--batch_size", default=4, type=int, help="batch size")
+parser.add_argument("--batch_size", default=1, type=int, help="batch size")
 parser.add_argument("--num_workers", default=8, type=int, help="number of workers")
 parser.add_argument("--hungarian_at_each_step", default=True, action="store_true",
                     help="enable hungarian pass at the end of each epoch")
@@ -77,13 +79,14 @@ parser.add_argument("--dbscan", type=float, default=0.5)
 
 
 def main(args):
+
     os.environ["WANDB_API_KEY"] = "f9783051d87ae4a949554f1386899a792577b134"
     os.environ["WANDB_MODE"] = "online"
 
     # args.checkpoint_dir = os.path.join(args.checkpoint_dir, args.dataset, args.comment)
     args.checkpoint_dir = os.path.join(args.checkpoint_dir, args.dataset, args.comment)
     try:
-        os.makedirs(args.checkpoint_dir, exist_ok=True)
+        os.makedirs(args.checkpoint_dir,exist_ok=True)
         os.mkdir(args.log_dir)
     except:
         pass
@@ -123,14 +126,8 @@ def main(args):
     args.num_labeled_classes = args.num_classes - args.num_unlabeled_classes
 
     mIoU_callback = mIoUEvaluatorCallback()
-    # checkpoint_callback = ModelCheckpoint(
-    #     save_last=True,
-    #     save_weights_only=True,
-    #     dirpath=args.checkpoint_dir,
-    #     # every_n_epochs=True,
-    # )
     csv_logger = CSVLogger(save_dir=args.log_dir)
-
+    
     checkpoint_callback = ModelCheckpoint(
         monitor='valid/mIoU',  # 监控的指标
         mode='max',
@@ -151,8 +148,8 @@ def main(args):
         logger=loggers,
         gpus=1,
         num_sanity_val_steps=0,
-        # precision=16,  # 启用混合精度训练
-        # accelerator='ddp',  # 使用 DDP 加速器进行多 GPU 训练
+        #precision=16,  # 启用混合精度训练
+        #accelerator='ddp',  # 使用 DDP 加速器进行多 GPU 训练
         callbacks=[mIoU_callback, checkpoint_callback, lr_monitor],
     )
     trainer.fit(model)
