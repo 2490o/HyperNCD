@@ -52,11 +52,17 @@ Please refer to the environment setup of **[NOPS](https://github.com/LuigiRiz/NO
 ### Train
 
 ```
-python train.py -s 00 --dataset SemanticPOSS --offline --epoch 10 --use_scheduler --lam 1 --lam_region 1 --gamma 1 --alpha 1 --gamma_decrease 0.5 --smooth_bound 10 --ak_bound 0.005 --dbscan 0.5
+python train_GAP.py -s 00 --dataset SemanticPOSS --offline --epochs 10
 ```
 
 ```
-python train.py -s 00 --dataset SemanticKITTI --offline --epoch 10 --use_scheduler --lam 1 --lam_region 1 --gamma 1 --alpha 1 --gamma_decrease 0.5 --smooth_bound 10 --ak_bound 0.005 --dbscan 0.5
+python train_GAP -s 00 --dataset SemanticKITTI --offline --epoch 10 
+```
+
+### Test
+
+```
+python test_GAP.py -s 00 --checkpoint checkpoints/
 ```
 
 ## Citation
